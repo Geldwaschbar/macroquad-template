@@ -1,23 +1,38 @@
+mod player;
 mod spritesheet;
 mod tilemap;
 
 use macroquad::prelude::*;
 
+use crate::player::Player;
 use crate::spritesheet::Spritesheet;
 use crate::tilemap::*;
 
 #[macroquad::main("Texture")]
 async fn main() {
     let spritesheet = Spritesheet::new("assets/spritesheet.png").await;
-    let tilemap = Tilemap::from(pico8::Loader {}, include_bytes!("../assets/spritemap.txt"));
+    let tilemap = Tilemap::from(&mut pico8::Loader::new(include_bytes!(
+        "../assets/spritemap.txt"
+    )));
+    let mut player = Player::new();
+    player.move_to(Vec2::new(64.0, 64.0));
     loop {
+        #[cfg(not(target_arch = "wasm32"))]
+        if is_key_down(KeyCode::Q) | is_key_down(KeyCode::Escape) {
+            break;
+        }
+
         clear_background(BLACK);
+        player.movement(&spritesheet, &tilemap);
+        set_camera(player.get_camera());
         tilemap.draw_area(
             &spritesheet,
-            Rect::new(0.0, 0.0, 31.0, 31.0),
+            player.get_viewport(&spritesheet),
             Vec2::ZERO,
-            5.0,
+            1.0,
         );
+        player.draw();
+        set_default_camera();
 
         next_frame().await
     }

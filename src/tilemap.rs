@@ -2,18 +2,22 @@ use crate::spritesheet::Spritesheet;
 use macroquad::prelude::*;
 
 pub trait TilemapLoader {
-    fn parse(&self, data: &[u8]) -> Tilemap;
+    fn parse(&mut self) -> Tilemap;
 }
 
 #[derive(Debug, Default)]
 pub struct Tile {
     sprite: Vec2,
-    is_solid: bool,
+    flag: u8,
 }
 
 impl Tile {
-    pub fn new(sprite: Vec2, is_solid: bool) -> Tile {
-        Tile { sprite, is_solid }
+    pub fn new(sprite: Vec2, flag: u8) -> Tile {
+        Tile { sprite, flag }
+    }
+
+    pub fn is_free(&self) -> bool {
+        (&self.flag & 1) > 0
     }
 }
 
@@ -27,14 +31,14 @@ pub struct Tilemap {
 }
 
 impl Tilemap {
-    pub fn from<T: TilemapLoader>(loader: T, data: &[u8]) -> Tilemap {
-        loader.parse(data)
+    pub fn from<T: TilemapLoader>(loader: &mut T) -> Tilemap {
+        loader.parse()
     }
 
     pub fn draw_area(&self, spritesheet: &Spritesheet, rect: Rect, pos: Vec2, scale: f32) {
-        for x in (rect.x as usize)..(rect.w as usize) {
-            for y in (rect.y as usize)..(rect.h as usize) {
-                if let Some(tile) = self.get_tile(x, y) {
+        for x in (rect.x as usize)..((rect.x + rect.w) as usize) {
+            for y in (rect.y as usize)..((rect.y + rect.h) as usize) {
+                if let Some(tile) = self.get_abs_tile(x, y) {
                     spritesheet.draw_sprite(
                         &tile.sprite,
                         pos + vec2(
@@ -48,7 +52,8 @@ impl Tilemap {
         }
     }
 
-    pub fn get_tile(&self, x: usize, y: usize) -> Option<&Tile> {
+    /// Returns the tile based on the absolut index position of the map.
+    pub fn get_abs_tile(&self, x: usize, y: usize) -> Option<&Tile> {
         if let Some(row) = self.map.get(y) {
             if let Some(tile) = row.get(x) {
                 if let Some(id) = tile {
@@ -59,67 +64,108 @@ impl Tilemap {
         // Outside of map
         None
     }
+
+    pub fn get_rel_tile(&self, spritesheet: &Spritesheet, x: f32, y: f32) -> Option<&Tile> {
+        self.get_abs_tile(
+            (x / spritesheet.sprite_width()) as usize,
+            (y / spritesheet.sprite_height()) as usize,
+        )
+    }
 }
 
 pub mod pico8 {
     use crate::tilemap::{Tile, Tilemap, TilemapLoader};
     use macroquad::prelude::*;
     use std::collections::HashMap;
+    use std::slice::Iter;
 
-    #[derive(Debug, Default)]
-    pub struct Loader {}
-
-    fn byte_to_hex(byte: u8) -> i8 {
-        assert!(byte.is_ascii_hexdigit());
-        if byte >= b'0' && byte <= b'9' {
-            return (byte - b'0') as i8;
-        }
-        if byte >= b'a' && byte <= b'f' {
-            return (byte - b'a' + 10) as i8;
-        }
-        if byte >= b'A' && byte <= b'F' {
-            return (byte - b'A' + 10) as i8;
-        }
-        panic!("could not convert byte to number");
+    #[derive(Debug)]
+    pub struct Loader<'a> {
+        iter: Iter<'a, u8>,
+        line: usize,
+        col: usize,
     }
 
-    impl TilemapLoader for Loader {
-        fn parse(&self, data: &[u8]) -> Tilemap {
-            let mut pos2id = HashMap::new();
-            let mut map = Vec::new();
-            let mut tiles = Vec::new();
-            let mut col = Vec::new();
-            let mut iter = data.iter();
+    impl<'a> Loader<'a> {
+        pub fn new(data: &'a [u8]) -> Loader<'a> {
+            Loader {
+                iter: data.iter(),
+                line: 1,
+                col: 0,
+            }
+        }
 
-            loop {
-                if let Some(next) = iter.next() {
-                    if *next == b'\n' {
-                        map.push(col);
-                        col = Vec::new();
+        fn read_byte(&mut self) -> u8 {
+            (Self::byte_to_hex(self.advance()) << 4) | Self::byte_to_hex(self.advance())
+        }
+
+        fn skip_line(&mut self) {
+            while self.advance() != b'\n' {}
+            self.next_line();
+        }
+
+        fn next_line(&mut self) {
+            self.line += 1;
+            self.col = 0;
+        }
+
+        fn advance(&mut self) -> u8 {
+            self.col += 1;
+            *self.iter.next().expect("expect token")
+        }
+
+        fn consume_eol(&mut self) {
+            let got = self.advance();
+            assert_eq!(
+                got, b'\n',
+                "got char '{}' but expected '\\n' at {}:{}",
+                got as char, self.line, self.col
+            );
+            self.next_line();
+        }
+
+        fn byte_to_hex(byte: u8) -> u8 {
+            assert!(byte.is_ascii_hexdigit(), "{}", byte as char);
+            if byte >= b'0' && byte <= b'9' {
+                return byte - b'0';
+            }
+            if byte >= b'a' && byte <= b'f' {
+                return byte - b'a' + 10;
+            }
+            if byte >= b'A' && byte <= b'F' {
+                return byte - b'A' + 10;
+            }
+            panic!("could not convert byte to number");
+        }
+    }
+
+    impl TilemapLoader for Loader<'_> {
+        fn parse(&mut self) -> Tilemap {
+            let mut map = Vec::new();
+            let mut tiles = Vec::with_capacity(256);
+
+            // Skip __gff__ label
+            self.skip_line();
+            for i in 0..256 {
+                let flag = self.read_byte();
+                tiles.push(Tile::new(Vec2::new((i % 16) as f32, (i / 16) as f32), flag))
+            }
+            self.consume_eol();
+
+            // Skip __map__ label
+            self.skip_line();
+            for _ in 0..31 {
+                let mut col = Vec::with_capacity(128);
+                for _ in 0..128 {
+                    let id = self.read_byte();
+                    if id == 0 {
+                        col.push(None)
                     } else {
-                        let (x, y) = (
-                            byte_to_hex(*iter.next().expect("expected pair")),
-                            byte_to_hex(*next),
-                        );
-                        if x == 0 && y == 0 {
-                            col.push(None)
-                        } else {
-                            let tile_id = {
-                                if let Some(id) = pos2id.get(&(x, y)) {
-                                    *id
-                                } else {
-                                    tiles.push(Tile::new(Vec2::new(x as f32, y as f32), false));
-                                    let tile_id = tiles.len() - 1;
-                                    pos2id.insert((x, y), tile_id);
-                                    tile_id
-                                }
-                            };
-                            col.push(Some(tile_id));
-                        }
+                        col.push(Some(id as usize));
                     }
-                } else {
-                    break;
                 }
+                map.push(col);
+                self.consume_eol();
             }
 
             Tilemap { map, tiles }
