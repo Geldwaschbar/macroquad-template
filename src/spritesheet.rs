@@ -1,8 +1,8 @@
-use macroquad::{prelude::*, texture};
+use macroquad::prelude::*;
 
 pub struct Spritesheet {
     texture: Texture2D,
-    tile_dim: Vec2,
+    sprite_dim: Vec2,
 }
 
 impl Spritesheet {
@@ -13,7 +13,7 @@ impl Spritesheet {
         texture.set_filter(FilterMode::Nearest);
         Spritesheet {
             texture,
-            tile_dim: Vec2::splat(8.0),
+            sprite_dim: Vec2::splat(8.0),
         }
     }
 
@@ -25,15 +25,15 @@ impl Spritesheet {
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(
-                    self.texture.width() * scale,
-                    self.texture.height() * scale,
+                    self.sprite_width() * scale,
+                    self.sprite_height() * scale,
                 )),
                 ..DrawTextureParams::default()
             },
         );
     }
 
-    pub fn draw_sprite(&self, sprite: Vec2, pos: Vec2, scale: f32) {
+    pub fn draw_sprite(&self, sprite: &Vec2, pos: Vec2, scale: f32) {
         assert!(scale > 0.0);
         draw_texture_ex(
             &self.texture,
@@ -41,23 +41,23 @@ impl Spritesheet {
             pos.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(self.tile_dim * scale),
+                dest_size: Some(self.sprite_dim * scale),
                 source: Some(Rect::new(
-                    sprite.x * self.tile_dim.x,
-                    sprite.x * self.tile_dim.y,
-                    self.tile_dim.x,
-                    self.tile_dim.y,
+                    sprite.x * self.sprite_width(),
+                    sprite.y * self.sprite_height(),
+                    self.sprite_width(),
+                    self.sprite_height(),
                 )),
                 ..DrawTextureParams::default()
             },
         );
     }
 
-    pub fn width(&self) -> usize {
-        (self.texture.width() / self.tile_dim.x) as usize
+    pub fn sprite_width(&self) -> f32 {
+        self.sprite_dim.x
     }
 
-    pub fn height(&self) -> usize {
-        (self.texture.height() / self.tile_dim.y) as usize
+    pub fn sprite_height(&self) -> f32 {
+        self.sprite_dim.y
     }
 }
