@@ -8,7 +8,16 @@ use crate::player::Player;
 use crate::spritesheet::Spritesheet;
 use crate::tilemap::*;
 
-#[macroquad::main("Texture")]
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "Macroquad Template".to_owned(),
+        high_dpi: true,
+        sample_count: 1,
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
 async fn main() {
     let spritesheet = Spritesheet::new("assets/spritesheet.png").await;
     let tilemap = Tilemap::from(&mut pico8::Loader::new(include_bytes!(
