@@ -9,7 +9,8 @@ use macroquad::{
 
 use crate::{spritesheet::Spritesheet, tilemap::Tilemap};
 
-const PLAYER_SPEED: f32 = 1.2;
+const PLAYER_SPEED: f32 = 1.15;
+const PLAYER_ZOOM: f32 = 0.02;
 
 #[derive(Debug)]
 pub struct Player {
@@ -19,10 +20,9 @@ pub struct Player {
 
 impl Player {
     pub fn new() -> Player {
-        let zoom = 0.015;
         Player {
             camera: Camera2D {
-                zoom: Vec2::new(zoom, zoom * screen_width() / screen_height()),
+                zoom: Vec2::new(PLAYER_ZOOM, PLAYER_ZOOM * screen_width() / screen_height()),
                 ..Default::default()
             },
             position: Vec2::ZERO,
@@ -31,7 +31,8 @@ impl Player {
 
     pub fn move_to(&mut self, next: Vec2) {
         self.position = next;
-        self.camera.target = next;
+        self.camera.zoom = Vec2::new(PLAYER_ZOOM, PLAYER_ZOOM * screen_width() / screen_height());
+        self.camera.target = next.floor();
     }
 
     pub fn movement(&mut self, spritesheet: &Spritesheet, tilemap: &Tilemap) {
@@ -57,7 +58,7 @@ impl Player {
     }
 
     pub fn draw(&self) {
-        draw_circle(self.position.x, self.position.y, 5.0, RED);
+        draw_circle(self.camera.target.x, self.camera.target.y, 4.0, RED);
     }
 
     pub fn get_camera(&self) -> &Camera2D {
@@ -65,15 +66,10 @@ impl Player {
     }
 
     pub fn get_viewport(&self, spritesheet: &Spritesheet) -> Rect {
-        let x = &self.position.x / spritesheet.sprite_width();
-        let y = &self.position.y / spritesheet.sprite_height();
-        let w = screen_width() / spritesheet.sprite_width();
-        let h = screen_height() / spritesheet.sprite_height();
-        Rect::new(
-            (x - w / 2.0).floor(),
-            (y - h / 2.0).floor(),
-            w.ceil(),
-            h.ceil(),
-        )
+        let x = (&self.position.x / spritesheet.sprite_width()).floor();
+        let y = (&self.position.y / spritesheet.sprite_height()).floor();
+        let w = (screen_width() / spritesheet.sprite_width()).ceil();
+        let h = (screen_height() / spritesheet.sprite_height()).ceil();
+        Rect::new((x - w / 2.0).floor(), (y - h / 2.0).floor(), w, h)
     }
 }

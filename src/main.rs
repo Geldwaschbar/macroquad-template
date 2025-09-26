@@ -12,14 +12,14 @@ fn window_conf() -> Conf {
     Conf {
         window_title: "Macroquad Template".to_owned(),
         high_dpi: true,
-        sample_count: 1,
+        sample_count: 2,
         ..Default::default()
     }
 }
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let spritesheet = Spritesheet::new("assets/spritesheet.png").await;
+    let spritesheet = Spritesheet::new("assets/spritesheet.png", 1.0).await;
     let tilemap = Tilemap::from(&mut pico8::Loader::new(include_bytes!(
         "../assets/spritemap.txt"
     )));
@@ -34,12 +34,7 @@ async fn main() {
         clear_background(BLACK);
         player.movement(&spritesheet, &tilemap);
         set_camera(player.get_camera());
-        tilemap.draw_area(
-            &spritesheet,
-            player.get_viewport(&spritesheet),
-            Vec2::ZERO,
-            1.0,
-        );
+        tilemap.draw_area(&spritesheet, player.get_viewport(&spritesheet), Vec2::ZERO);
         player.draw();
         set_default_camera();
 

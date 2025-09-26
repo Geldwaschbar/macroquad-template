@@ -35,17 +35,16 @@ impl Tilemap {
         loader.parse()
     }
 
-    pub fn draw_area(&self, spritesheet: &Spritesheet, rect: Rect, pos: Vec2, scale: f32) {
+    pub fn draw_area(&self, spritesheet: &Spritesheet, rect: Rect, pos: Vec2) {
         for x in (rect.x as usize)..((rect.x + rect.w) as usize) {
             for y in (rect.y as usize)..((rect.y + rect.h) as usize) {
                 if let Some(tile) = self.get_abs_tile(x, y) {
                     spritesheet.draw_sprite(
                         &tile.sprite,
                         pos + vec2(
-                            (x as f32) * spritesheet.sprite_width() * scale,
-                            (y as f32) * spritesheet.sprite_height() * scale,
+                            (x as f32) * spritesheet.sprite_width(),
+                            (y as f32) * spritesheet.sprite_height(),
                         ),
-                        scale,
                     );
                 }
             }
@@ -76,7 +75,6 @@ impl Tilemap {
 pub mod pico8 {
     use crate::tilemap::{Tile, Tilemap, TilemapLoader};
     use macroquad::prelude::*;
-    use std::collections::HashMap;
     use std::slice::Iter;
 
     #[derive(Debug)]
