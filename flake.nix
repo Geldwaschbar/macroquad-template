@@ -53,6 +53,7 @@
           sccache
           wasm-pack
           nodejs
+          tiled
         ];
         libDependencies = with pkgs; [
           libGL
